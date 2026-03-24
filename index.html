@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>竞品亚马逊价格每日更新</title>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d2e;
+    --surface2: #252840;
+    --border: #2e3250;
+    --accent: #4f8ef7;
+    --accent2: #7c3aed;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --up: #ef4444;
+    --down: #22c55e;
+    --same: #64748b;
+    --na: #374151;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: linear-gradient(135deg, var(--surface) 0%, #1e1b4b 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 28px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .header-left h1 {
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(90deg, #60a5fa, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.3px;
+  }
+  .header-left .subtitle {
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 3px;
+  }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .stat-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 14px;
+    text-align: center;
+  }
+  .stat-badge .val { font-size: 18px; font-weight: 700; color: var(--accent); }
+  .stat-badge .lbl { font-size: 10px; color: var(--text2); }
+  .updated-tag {
+    background: rgba(79,142,247,0.12);
+    border: 1px solid rgba(79,142,247,0.3);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 11px;
+    color: #93c5fd;
+  }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .search-box {
+    display: flex;
+    align-items: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 12px;
+    gap: 8px;
+    min-width: 220px;
+  }
+  .search-box input {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-size: 13px;
+    width: 100%;
+  }
+  .search-box input::placeholder { color: var(--text2); }
+  .search-icon { color: var(--text2); font-size: 14px; }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .tab {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .tab:hover { border-color: var(--accent); color: var(--text); }
+  .tab.active {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-color: transparent;
+    color: #fff;
+    font-weight: 600;
+  }
+  .tab .count {
+    display: inline-block;
+    background: rgba(255,255,255,0.2);
+    border-radius: 10px;
+    padding: 0 6px;
+    font-size: 10px;
+    margin-left: 4px;
+  }
+
+  /* ── Table container ── */
+  .table-wrap {
+    padding: 0 28px 32px;
+    overflow: auto;
+    flex: 1;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead tr {
+    background: var(--surface2);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  th {
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text);
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+  th:hover { color: var(--accent); }
+  th.sort-asc::after  { content: " ↑"; color: var(--accent); }
+  th.sort-desc::after { content: " ↓"; color: var(--accent); }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  tbody tr:hover { background: rgba(79,142,247,0.06); }
+
+  td {
+    padding: 9px 12px;
+    vertical-align: middle;
+  }
+
+  /* ── Shrink fixed cols to content width ── */
+  th.col-fixed, td.col-fixed {
+    width: 1%;
+    white-space: nowrap;
+  }
+
+  /* ── Category badge ── */
+  .cat-badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  /* ── Brand / Model ── */
+  .brand { font-weight: 600; color: var(--text); }
+  .model { color: var(--text2); font-size: 12px; }
+  .asin-link {
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px dashed rgba(79,142,247,0.4);
+  }
+  .asin-link:hover { color: #93c5fd; border-color: #93c5fd; }
+
+  /* ── Price cells ── */
+  .price-cell {
+    text-align: left;
+    min-width: 80px;
+  }
+  .price-val {
+    font-weight: 700;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+  .price-change {
+    font-size: 10px;
+    margin-left: 4px;
+    font-weight: 600;
+  }
+  .price-up   .price-val { color: var(--up); }
+  .price-down .price-val { color: var(--down); }
+  .price-same .price-val { color: var(--text); }
+  .price-up   .price-change::before { content: "▲"; color: var(--up); }
+  .price-down .price-change::before { content: "▼"; color: var(--down); }
+  .price-na {
+    color: var(--na);
+    font-size: 11px;
+    text-align: left;
+    font-style: italic;
+  }
+  .price-today .price-val {
+    color: #fbbf24;
+  }
+
+  /* ── Date header ── */
+  .date-col-today { color: #fbbf24 !important; }
+  .date-col-today::before { content: "★ "; }
+
+  /* ── Empty / loading ── */
+  .loading, .empty {
+    text-align: center;
+    padding: 60px;
+    color: var(--text2);
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Countdown ── */
+  .countdown {
+    font-size: 11px;
+    color: var(--text2);
+    margin-left: auto;
+  }
+  .countdown span { color: #60a5fa; font-weight: 600; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .header { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .table-wrap { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <h1>竞品亚马逊价格每日更新</h1>
+    <div class="subtitle" id="subtitle">加载中...</div>
+  </div>
+  <div class="header-right">
+    <div class="stat-badge">
+      <div class="val" id="stat-total">-</div>
+      <div class="lbl">竞品总数</div>
+    </div>
+    <div class="stat-badge">
+      <div class="val" id="stat-dates">-</div>
+      <div class="lbl">监控天数</div>
+    </div>
+    <div class="updated-tag" id="updated-tag">数据加载中</div>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <div class="search-box">
+    <span class="search-icon">🔍</span>
+    <input id="search" type="text" placeholder="搜索品牌 / 型号 / ASIN...">
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div class="countdown" id="countdown"></div>
+</div>
+
+<!-- Table -->
+<div class="table-wrap">
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div>正在加载价格数据...</div>
+  </div>
+  <table id="table" style="display:none">
+    <thead><tr id="thead-row"></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="empty" id="empty" style="display:none">无匹配数据</div>
+</div>
+
+<script>
+// ── Category colors ──
+const CAT_COLORS = {
+  '记录仪-小机器': '#1e40af',
+  '记录仪-后视镜': '#1e3a5f',
+  '改装-车把手':   '#78350f',
+  '洗车风枪':      '#064e3b',
+  '启动电源/亏电宝': '#581c87',
+  '充气泵':        '#0f4c81',
+  '割草机':        '#14532d',
+  '测距仪':        '#7c2d12',
+  '枪镜':          '#1f2937',
+  '3W脚垫/内饰装饰': '#4a1942',
+};
+function catColor(cat) {
+  return CAT_COLORS[cat] || '#1e293b';
+}
+
+// ── State ──
+let allRows = [];
+let dateCols = [];
+let activeCategory = '全部';
+let searchTerm = '';
+let sortCol = null;
+let sortDir = 1;
+let today = new Date().toISOString().slice(0, 10);
+
+// ── Fetch data (reads CSV directly, works on GitHub Pages) ──
+async function loadData() {
+  try {
+    const res = await fetch('competitor_prices.csv?t=' + Date.now());
+    if (!res.ok) throw new Error('CSV not found');
+    const text = await res.text();
+
+    const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+    const headers = parsed.meta.fields || [];
+    allRows  = parsed.data;
+    dateCols = headers.filter(h => h.startsWith('Price_')).sort();
+
+    // 补全 US ASIN Link
+    allRows.forEach(r => {
+      if (!r['US ASIN Link']) r['US ASIN Link'] = `https://www.amazon.com/dp/${r['ASIN']}`;
+    });
+
+    const latestDate = dateCols[dateCols.length - 1] || '';
+    document.getElementById('updated-tag').textContent = '最新: ' + latestDate.replace('Price_', '');
+    document.getElementById('stat-total').textContent = allRows.length;
+    document.getElementById('stat-dates').textContent = dateCols.length;
+    document.getElementById('subtitle').textContent =
+      `最新数据: ${latestDate.replace('Price_', '')}  |  共 ${allRows.length} 个竞品`;
+    buildTabs();
+    buildTable();
+  } catch (e) {
+    document.getElementById('loading').innerHTML =
+      `<div style="color:#ef4444">⚠️ 无法加载数据: ${e.message}</div>`;
+  }
+}
+
+// ── Tabs ──
+function buildTabs() {
+  const cats = ['全部', ...new Set(allRows.map(r => r['产品线']))];
+  const counts = {};
+  allRows.forEach(r => { counts[r['产品线']] = (counts[r['产品线']] || 0) + 1; });
+
+  const container = document.getElementById('tabs');
+  container.innerHTML = '';
+  cats.forEach(cat => {
+    const btn = document.createElement('div');
+    btn.className = 'tab' + (cat === activeCategory ? ' active' : '');
+    const n = cat === '全部' ? allRows.length : (counts[cat] || 0);
+    btn.innerHTML = `${cat}<span class="count">${n}</span>`;
+    btn.onclick = () => { activeCategory = cat; buildTabs(); buildTable(); };
+    container.appendChild(btn);
+  });
+}
+
+// ── Build table ──
+function buildTable() {
+  const showDates = dateCols.slice(-7); // 最多显示最近7天
+  const todayCol  = 'Price_' + today;
+
+  // Header
+  const thead = document.getElementById('thead-row');
+  thead.innerHTML = '';
+  const cols = ['产品线', '品牌 / 型号', 'ASIN', ...showDates];
+  cols.forEach((col, i) => {
+    const th = document.createElement('th');
+    const isDate = col.startsWith('Price_');
+    const isToday = col === todayCol;
+    const label = isDate ? col.replace('Price_', '') : col;
+    th.textContent = label;
+    const classes = [];
+    if (isToday) classes.push('date-col-today');
+    if (!isDate) classes.push('col-fixed');
+    if (classes.length) th.className = classes.join(' ');
+    th.onclick = () => {
+      if (sortCol === col) sortDir *= -1;
+      else { sortCol = col; sortDir = 1; }
+      document.querySelectorAll('th').forEach(t => t.classList.remove('sort-asc','sort-desc'));
+      th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+      renderRows(showDates, todayCol);
+    };
+    thead.appendChild(th);
+  });
+
+  renderRows(showDates, todayCol);
+}
+
+function renderRows(showDates, todayCol) {
+  let rows = allRows.filter(r => {
+    if (activeCategory !== '全部' && r['产品线'] !== activeCategory) return false;
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      return (r['竞争品牌'] + r['竞品型号'] + r['ASIN']).toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  if (sortCol) {
+    rows = [...rows].sort((a, b) => {
+      const av = parseFloat(a[sortCol]) || 0;
+      const bv = parseFloat(b[sortCol]) || 0;
+      if (av !== bv) return (av - bv) * sortDir;
+      return (a['竞争品牌'] + a['竞品型号']).localeCompare(b['竞争品牌'] + b['竞品型号']);
+    });
+  }
+
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+
+  rows.forEach(row => {
+    const tr = document.createElement('tr');
+    const cells = [];
+
+    // 产品线
+    const cat = row['产品线'];
+    cells.push(`<td class="col-fixed"><span class="cat-badge" style="background:${catColor(cat)}20;color:${catColor(cat).replace('#','')};border:1px solid ${catColor(cat)}40">${cat}</span></td>`);
+
+    // 品牌 + 型号
+    cells.push(`<td class="col-fixed"><div class="brand">${row['竞争品牌']}</div><div class="model">${row['竞品型号'] !== '/' ? row['竞品型号'] : ''}</div></td>`);
+    cells.push(`<td class="col-fixed"><a class="asin-link" href="${row['US ASIN Link']}" target="_blank">${row['ASIN']}</a></td>`);
+    // 价格列
+    showDates.forEach((dateCol, idx) => {
+      const val  = row[dateCol] || '';
+      const prev = idx > 0 ? (row[showDates[idx-1]] || '') : '';
+      const isToday = dateCol === todayCol;
+      cells.push(buildPriceCell(val, prev, isToday));
+    });
+
+    tr.innerHTML = cells.join('');
+    tbody.appendChild(tr);
+  });
+
+  const table = document.getElementById('table');
+  const empty = document.getElementById('empty');
+  document.getElementById('loading').style.display = 'none';
+  if (rows.length === 0) {
+    table.style.display = 'none';
+    empty.style.display = 'block';
+  } else {
+    table.style.display = 'table';
+    empty.style.display = 'none';
+  }
+}
+
+function buildPriceCell(val, prev, isToday) {
+  if (!val || val === 'NA' || val === 'BOT' || val === 'ERR') {
+    return `<td class="price-cell price-na">—</td>`;
+  }
+  const num = parseFloat(val);
+  const prevNum = parseFloat(prev);
+  let cls = 'price-same';
+  let changeTxt = '';
+  if (prev && !isNaN(prevNum) && num !== prevNum) {
+    const diff = num - prevNum;
+    cls = diff > 0 ? 'price-up' : 'price-down';
+    changeTxt = `<span class="price-change">${Math.abs(diff).toFixed(2)}</span>`;
+  }
+  if (isToday) cls += ' price-today';
+  return `<td class="price-cell ${cls}"><span class="price-val">$${num.toFixed(2)}</span>${changeTxt}</td>`;
+}
+
+// ── Search ──
+document.getElementById('search').addEventListener('input', e => {
+  searchTerm = e.target.value.trim();
+  buildTable();
+});
+
+// ── Countdown to midnight auto-refresh ──
+function updateCountdown() {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  const diff = midnight - now;
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  document.getElementById('countdown').innerHTML =
+    `距明日自动刷新: <span>${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}</span>`;
+
+  // 跨天时刷新页面
+  const newToday = new Date().toISOString().slice(0, 10);
+  if (newToday !== today) {
+    today = newToday;
+    loadData();
+  }
+}
+
+// ── Init ──
+loadData();
+setInterval(updateCountdown, 1000);
+setInterval(loadData, 60 * 60 * 1000);
+</script>
+</body>
+</html>
