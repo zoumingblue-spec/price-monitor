@@ -22,7 +22,8 @@ TODAY       = date.today().strftime("%Y-%m-%d")
 DATE_COL    = f"Price_{TODAY}"
 CONCURRENCY = 1          # 串行抓取，避免触发 Amazon 反爬
 DELAY_MS    = 2000       # 每次导航后等待（毫秒）
-HEADLESS    = False      # 有界面模式，不易被检测
+# CI 环境自动切换为 headless，本地默认有界面
+HEADLESS    = os.environ.get("CI", "") != ""
 
 
 # ──────────────────────────────────────────────
@@ -161,7 +162,17 @@ async def scrape(asin_rows: list[dict]) -> dict[str, str]:
             ),
             locale="en-US",
             viewport={"width": 1280, "height": 800},
+            extra_http_headers={
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            },
         )
+        # 隐藏 webdriver 特征，避免被 Amazon 识别为爬虫
+        await context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3] });
+            window.chrome = { runtime: {} };
+        """)
 
         async def fetch_one(idx: int, row: dict):
             asin = row["ASIN"]
@@ -252,18 +263,15 @@ async def main():
     merge(asin_rows, prices)
 
 
-def git_push():
-    """抓取完成后自动提交并推送到 GitHub"""
-    import subprocess
-    try:
-        subprocess.run(["git", "add", "competitor_prices.csv"], cwd=BASE_DIR, check=True)
-        subprocess.run(["git", "commit", "-m", f"price update {TODAY}"], cwd=BASE_DIR, check=True)
-        subprocess.run(["git", "push"], cwd=BASE_DIR, check=True)
-        print("Git push OK")
-    except subprocess.CalledProcessError as e:
-        print(f"Git push skipped: {e}")
-
-
 if __name__ == "__main__":
     asyncio.run(main())
-    git_push()
+    # 本地运行时自动推送到 GitHub（CI 环境由 Actions 处理）
+    if not os.environ.get("CI"):
+        import subprocess
+        try:
+            subprocess.run(["git", "add", "competitor_prices.csv"], cwd=BASE_DIR, check=True)
+            subprocess.run(["git", "commit", "-m", f"price update {TODAY}"], cwd=BASE_DIR, check=True)
+            subprocess.run(["git", "push"], cwd=BASE_DIR, check=True)
+            print("Git push OK")
+        except subprocess.CalledProcessError as e:
+            print(f"Git push skipped: {e}")
