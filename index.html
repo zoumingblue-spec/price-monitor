@@ -247,6 +247,20 @@
   .date-col-today { color: #fbbf24 !important; }
   .date-col-today::before { content: "★ "; }
 
+  /* ── Sparkline ── */
+  .sparkline-cell {
+    width: 140px;
+    min-width: 140px;
+    padding: 6px 12px;
+    vertical-align: middle;
+  }
+  .sparkline-cell svg { display: block; overflow: visible; }
+  .spark-label {
+    font-size: 9px;
+    fill: var(--text2);
+    font-family: monospace;
+  }
+
   /* ── Empty / loading ── */
   .loading, .empty {
     text-align: center;
@@ -406,16 +420,17 @@ function buildTable() {
   // Header
   const thead = document.getElementById('thead-row');
   thead.innerHTML = '';
-  const cols = ['产品线', '品牌 / 型号', 'ASIN', ...showDates];
+  const cols = ['产品线', '品牌 / 型号', 'ASIN', ...showDates, '价格趋势'];
   cols.forEach((col, i) => {
     const th = document.createElement('th');
     const isDate = col.startsWith('Price_');
     const isToday = col === todayCol;
     const label = isDate ? col.replace('Price_', '') : col;
     th.textContent = label;
+    const isTrend = col === '价格趋势';
     const classes = [];
     if (isToday) classes.push('date-col-today');
-    if (!isDate) classes.push('col-fixed');
+    if (!isDate && !isTrend) classes.push('col-fixed');
     if (classes.length) th.className = classes.join(' ');
     th.onclick = () => {
       if (sortCol === col) sortDir *= -1;
@@ -471,6 +486,9 @@ function renderRows(showDates, todayCol) {
       cells.push(buildPriceCell(val, prev, isToday));
     });
 
+    // 趋势 sparkline
+    cells.push(buildSparkline(row));
+
     tr.innerHTML = cells.join('');
     tbody.appendChild(tr);
   });
@@ -485,6 +503,64 @@ function renderRows(showDates, todayCol) {
     table.style.display = 'table';
     empty.style.display = 'none';
   }
+}
+
+// ── Sparkline SVG ──
+function buildSparkline(row) {
+  const W = 120, H = 36, PAD = 4;
+  // 收集所有有效价格点 {x: index, y: price}
+  const points = [];
+  dateCols.forEach((col, i) => {
+    const v = parseFloat(row[col]);
+    if (!isNaN(v) && v > 0) points.push({ i, v });
+  });
+  if (points.length < 2) {
+    return `<td class="sparkline-cell"><svg width="${W}" height="${H}">
+      <text x="${W/2}" y="${H/2+4}" text-anchor="middle" class="spark-label">—</text>
+    </svg></td>`;
+  }
+
+  const minV = Math.min(...points.map(p => p.v));
+  const maxV = Math.max(...points.map(p => p.v));
+  const rangeV = maxV - minV || 1;
+  const minI = points[0].i, maxI = points[points.length-1].i;
+  const rangeI = maxI - minI || 1;
+
+  const toX = i  => PAD + ((i - minI) / rangeI) * (W - PAD*2);
+  const toY = v  => PAD + (1 - (v - minV) / rangeV) * (H - PAD*2 - 10);
+
+  const coords = points.map(p => `${toX(p.i).toFixed(1)},${toY(p.v).toFixed(1)}`).join(' ');
+
+  const first = points[0].v, last = points[points.length-1].v;
+  const color = last < first ? '#22c55e' : last > first ? '#ef4444' : '#64748b';
+
+  // 渐变填充
+  const fillId = 'sf' + Math.random().toString(36).slice(2,7);
+  const lastX = toX(points[points.length-1].i).toFixed(1);
+  const lastY = toY(last).toFixed(1);
+  const firstX = toX(points[0].i).toFixed(1);
+  const bottomY = (H - PAD - 10).toFixed(1);
+
+  // 标注最新价格
+  const priceLabel = `$${last.toFixed(2)}`;
+
+  return `<td class="sparkline-cell">
+  <svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="${fillId}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity="0.3"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <polygon points="${coords} ${lastX},${bottomY} ${firstX},${bottomY}"
+             fill="url(#${fillId})"/>
+    <polyline points="${coords}"
+              fill="none" stroke="${color}" stroke-width="1.5"
+              stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${lastX}" cy="${lastY}" r="2.5" fill="${color}"/>
+    <text x="${W - PAD}" y="${H}" text-anchor="end" class="spark-label" fill="${color}">${priceLabel}</text>
+  </svg>
+  </td>`;
 }
 
 function buildPriceCell(val, prev, isToday) {
