@@ -243,6 +243,19 @@ def merge(asin_rows: list[dict], prices: dict[str, str]):
 # ──────────────────────────────────────────────
 # 入口
 # ──────────────────────────────────────────────
+FAILED_VALUES = {"NA", "TIMEOUT", "ERR", "BOT"}
+RETRY_MAX     = 6      # 最多重试次数
+RETRY_WAIT    = 600    # 每次重试间隔（秒）= 10 分钟
+
+
+def print_stats(prices: dict, label: str = ""):
+    ok  = sum(1 for v in prices.values() if v not in FAILED_VALUES)
+    na  = sum(1 for v in prices.values() if v in FAILED_VALUES)
+    tag = f"[{label}] " if label else ""
+    print(f"{tag}OK: {ok}  Failed: {na}")
+    sys.stdout.flush()
+
+
 async def main():
     print("=== Amazon competitor price monitor ===")
     print(f"Date: {TODAY}  |  Input: {INPUT_CSV.name}\n")
@@ -251,14 +264,25 @@ async def main():
     print(f"Total: {len(asin_rows)} ASINs, start scraping...\n")
     sys.stdout.flush()
 
+    # ── 首次抓取 ──
     prices = await scrape(asin_rows)
+    print_stats(prices, "Round 1")
 
-    # 统计
-    ok   = sum(1 for v in prices.values() if v not in ("NA","TIMEOUT","ERR","BOT"))
-    na   = sum(1 for v in prices.values() if v == "NA")
-    bot  = sum(1 for v in prices.values() if v == "BOT")
-    err  = sum(1 for v in prices.values() if v in ("TIMEOUT","ERR"))
-    print(f"\nDone -> OK: {ok}  NA: {na}  BOT-blocked: {bot}  ERR: {err}")
+    # ── 重试循环（最多 6 次，间隔 10 分钟）──
+    for retry in range(1, RETRY_MAX + 1):
+        failed_rows = [r for r in asin_rows if prices.get(r["ASIN"]) in FAILED_VALUES]
+        if not failed_rows:
+            break
+        print(f"\n{len(failed_rows)} ASINs failed, retry {retry}/{RETRY_MAX} in {RETRY_WAIT//60} min...")
+        sys.stdout.flush()
+        await asyncio.sleep(RETRY_WAIT)
+        print(f"\n--- Retry {retry}/{RETRY_MAX} ---")
+        retry_prices = await scrape(failed_rows)
+        # 合并结果：只更新之前失败的
+        for asin, price in retry_prices.items():
+            if price not in FAILED_VALUES:
+                prices[asin] = price
+        print_stats(prices, f"After retry {retry}")
 
     merge(asin_rows, prices)
 
