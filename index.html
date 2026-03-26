@@ -631,19 +631,21 @@ document.getElementById('search').addEventListener('input', e => {
   buildTable();
 });
 
-// ── Countdown to midnight auto-refresh ──
+// ── Countdown to noon auto-refresh ──
 function updateCountdown() {
   const now = new Date();
-  const midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0);
-  const diff = midnight - now;
+  const next = new Date(now);
+  next.setHours(12, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1); // 已过12点则指向明天
+  const diff = next - now;
   const h = Math.floor(diff / 3600000);
   const m = Math.floor((diff % 3600000) / 60000);
   const s = Math.floor((diff % 60000) / 1000);
+  const label = h >= 12 ? '距明日12:00自动刷新' : '距今日12:00自动刷新';
   document.getElementById('countdown').innerHTML =
-    `距明日自动刷新: <span>${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}</span>`;
+    `${label}: <span>${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}</span>`;
 
-  // 跨天时刷新页面
+  // 到达12点时刷新页面
   const newToday = new Date().toISOString().slice(0, 10);
   if (newToday !== today) {
     today = newToday;
