@@ -1,0 +1,112 @@
+=== Amazon competitor price monitor ===
+Date: 2026-03-26  |  Input: competitor_asins.csv
+
+Total: 98 ASINs, start scraping...
+
+  [  1/98] [OK] ROVE         R2-4K DUAL           B0D6J5B98H  ->  109.98
+  [  2/98] [OK] VIOFO        A229 Plus            B0CKX14L34  ->  159.99
+  [  3/98] [OK] Garmin       Dash Cam Mini 3      B0DDM7PFLW  ->  125.99
+  [  4/98] [OK] 70mai        M310                 B09P14VT3C  ->  27.98
+  [  5/98] [OK] ROVE         R2-4K                B074JT3698  ->  74.99
+  [  6/98] [OK] VIOFO        A119 Mini 2          B0C5MVB7NX  ->  85.99
+  [  7/98] [OK] VIOFO        A229 Pro 2CH         B0CKYFSKNN  ->  219.98
+  [  8/98] [OK] VIOFO        A329S 2CH            B0FFT3YBH7  ->  373.97
+  [  9/98] [OK] VIOFO        A329S 3CH            B0FFT52P6R  ->  429.98
+  [ 10/98] [OK] VANTRUE      N4S 3CH              B0FXWYWM8L  ->  174.99
+  [ 11/98] [OK] VANTRUE      N2X                  B0D9GRRXH5  ->  199.99
+  [ 12/98] [OK] VANTRUE      N4 Pro S 3CH         B0FG7ZX4R4  ->  299.99
+  [ 13/98] [OK] VANTRUE      E1 Pro               B0F8BQW4TR  ->  279.98
+  [ 14/98] [OK] VANTRUE      E360 Plus            B0FBGPSV5B  ->  249.99
+  [ 15/98] [OK] ROVE         R2-4K Pro            B0BZRKRBHP  ->  84.99
+  [ 16/98] [OK] VIOFO        A119M Pro            B0FY1PQ1GR  ->  139.98
+  [ 17/98] [OK] 70mai        A810S                B0C9TBZF8X  ->  129.99
+  [ 18/98] [OK] 70mai        A800SE-1             B09YCZ7PYW  ->  69.98
+  [ 19/98] [OK] 70mai        A510                 B0D6C59PZ9  ->  94.98
+  [ 20/98] [OK] 70mai        T800                 B0FGJ89XBJ  ->  299.97
+  [ 21/98] [OK] 70mai        X800                 B0DSBY97W9  ->  259.97
+  [ 22/98] [OK] DDPAI        Z90 MASTER 2CH       B0G3WMBG64  ->  305.25
+  [ 23/98] [OK] DDPAI        Z90 MASTER 3CH       B0G3WQSQ8C  ->  389.99
+  [ 24/98] [OK] GKU          D600                 B0CBV154W1  ->  49.99
+  [ 25/98] [OK] GKU          D600Pro              B0D4HBQR8G  ->  62.69
+  [ 26/98] [OK] Pelsee       P12 Pro              B0BF4WCZ8Q  ->  99.99
+  [ 27/98] [OK] Pelsee       S12 Pro              B0F847CTQX  ->  129.99
+  [ 28/98] [OK] Pelsee       P12 Plus             B0D7SQQ3NY  ->  129.99
+  [ 29/98] [OK] Rough Country /                    B0D1T4DQ8B  ->  699.95
+  [ 30/98] [OK] FRESMOL      /                    B0CFQC4DB3  ->  25.62
+  [ 31/98] [OK] CAGIWIRU     /                    B0FM43GXDJ  ->  20.77
+  [ 32/98] [OK] ZOAIVR       /                    B0F5HNWHTX  ->  37.99
+  [ 33/98] [OK] VASSON       /                    B0DSHVRDJ6  ->  36.88
+  [ 34/98] [OK] JVSCAM       X3                   B0DQNMJ2CX  ->  33.99
+  [ 35/98] [OK] Fanttik      B10 Pro Max          B0FH6PT5GC  ->  59.98
+  [ 36/98] [OK] Roedix       /                    B0F53JRXZL  ->  39.95
+  [ 37/98] [OK] ZOZOO        /                    B0G11B7G3B  ->  39.99
+  [ 38/98] [OK] Fanttik      B11 Pro Max          B0GLDY9SXR  ->  74.99
+  [ 39/98] [OK] Fanttik      Gust B11 Mix         B0GF7H1TJC  ->  69.99
+  [ 40/98] [OK] Fitnac       /                    B0FSKLSXRQ  ->  49.99
+  [ 41/98] [OK] NOCO         GB40                 B015TKUPIC  ->  99.95
+  [ 42/98] [OK] GOOLOO       A3                   B0D4DLXNR1  ->  69.99
+  [ 43/98] [OK] S ZEVZO      ET03                 B0C42Y5TPD  ->  56.99
+  [ 44/98] [OK] NOCO         GB70                 B016UG6PWE  ->  199.95
+  [ 45/98] [OK] NOCO         GBX45                B0924V8SPC  ->  124.95
+  [ 46/98] [OK] NOCO         GBX155               B08WZFPXFM  ->  369.95
+  [ 47/98] [OK] GOOLOO       A5                   B0FNMLG15N  ->  99.99
+  [ 48/98] [OK] NOCO         GB150                B015TKSSB8  ->  299.95
+  [ 49/98] [OK] NOCO         GB20                 B015TKPT1A  ->  79.95
+  [ 50/98] [OK] GOOLOO       GP400                B09HJH1S41  ->  89.99
+  [ 51/98] [OK] NOCO         GB50                 B07MVY7K43  ->  149.95
+  [ 52/98] [OK] GOOLOO       GT4000S              B09M9HQG73  ->  99.99
+  [ 53/98] [OK] Hulkman      ALPHA85              B08M41FX48  ->  99.99
+  [ 54/98] [OK] GOOLOO       GT6000               B0DT5YNC5Z  ->  129.98
+  [ 55/98] [OK] NOCO         GBX75                B08WYKD6TY  ->  234.95
+  [ 56/98] [OK] AVAPOW       /                    B08NPGCFSG  ->  149.99
+  [ 57/98] [OK] ETENWOLF     /                    B0FHK13XWS  ->  49.99
+  [ 58/98] [OK] Fanttik      X9 ULTRA             B0CQK4SRD8  ->  159.97
+  [ 59/98] [OK] ETENWOLF     VORTEX S6            B0CGLTPKBZ  ->  104.47
+  [ 60/98] [OK] Fanttik      X10                  B0DT11GNSB  ->  84.99
+  [ 61/98] [OK] Fanttik      X10 Pro max          B0G29Q1NYC  ->  89.99
+  [ 62/98] [OK] Fanttik      X9                   B0D738WY5J  ->  112.99
+  [ 63/98] [OK] Airmoto      /                    B094DMH7ZM  ->  59.99
+  [ 64/98] [OK] Airmoto      /                    B0C9SVSLZJ  ->  75.99
+  [ 65/98] [OK] DEWALT       /                    B07H39S9JQ  ->  117.03
+  [ 66/98] [OK] ETENWOLF     VORTEX S7            B0DP32SRJK  ->  189.99
+  [ 67/98] [OK] EGO Power+   /                    B0DSFB2WBB  ->  399.00
+  [ 68/98] [OK] EGO Power+   /                    B09RNDQCV3  ->  329.00
+  [ 69/98] [OK] EGO Power+   /                    B08VRZ172R  ->  169.00
+  [ 70/98] [OK] EGO Power+   /                    B0CPDZK5RQ  ->  543.17
+  [ 71/98] [OK] WORX         WG572                B09SBQY7QF  ->  399.99
+  [ 72/98] [OK] WORX         /                    B0921Q62XJ  ->  218.99
+  [ 73/98] [OK] WORX         /                    B0FLXRLD3W  ->  234.99
+  [ 74/98] [OK] WORX         /                    B08XFXKJ51  ->  179.99
+  [ 75/98] [OK] WORX         /                    B0DL9SRKFH  ->  169.99
+  [ 76/98] [OK] WORX         /                    B07N2XRHKM  ->  179.99
+  [ 77/98] [OK] DEWALT       /                    B016NZGL9O  ->  99.00
+  [ 78/98] [OK] Greenworks   /                    B0CLSDL517  ->  249.99
+  [ 79/98] [OK] DEWALT       /                    B07SMBDW61  ->  229.00
+  [ 80/98] [OK] BLACK+DECKER /                    B00AXTO41E  ->  149.00
+  [ 81/98] [OK] BLACK+DECKER /                    B006Z63K1O  ->  195.89
+  [ 82/98] [OK] BLACK+DECKER /                    B00D8GWX0I  ->  119.00
+  [ 83/98] [OK] BLACK+DECKER /                    B01N6P2F8M  ->  119.92
+  [ 84/98] [OK] BLACK+DECKER /                    B01BNMP6CU  ->  65.00
+  [ 85/98] [OK] Husqvarna    /                    B0C9MZ43W3  ->  367.10
+  [ 86/98] [OK] Husqvarna    /                    B0D1GKPD1K  ->  319.99
+  [ 87/98] [OK] Husqvarna    /                    B0CB6GVV75  ->  229.00
+  [ 88/98] [OK] Blue Tees    Golf Series 3 Max+   B0FLQYD6BT  ->  199.99
+  [ 89/98] [OK] Precision Pro Titan                B0DD5X6L1W  ->  299.99
+  [ 90/98] [OK] Bushnell     Tour V5              B088X3MJHF  ->  219.95
+  [ 91/98] [OK] AGM          Rattler V2           B0FNSV2PWM  ->  1399.02
+  [ 92/98] [OK] RIX          Storm S6R            B0FN7M576B  ->  1499.00
+  [ 93/98] [OK] DNT          640-50               B0FSZVWBR5  ->  2599.99
+  [ 94/98] [OK] LASFIT       Ford F-250/F-350/F-450 2017-2026 B0CW1RB9NJ  ->  124.98
+  [ 95/98] [OK] LASFIT       Ford Bronco Sport 2021-2026 B0DSL96WKY  ->  159.00
+  [ 96/98] [OK] LASFIT       Tesla Model Y Juniper 2025/2026 B0DZNPRRLH  ->  239.00
+  [ 97/98] [OK] LASFIT       Tesla Model Y 5 Seater B0C9ZWDHPX  ->  189.99
+  [ 98/98] [OK] LASFIT       Ford F-150 2015-2026 B0896RQ7VT  ->  124.98
+[Round 1] OK: 98  Failed: 0
+[main e8c8120] price update 2026-03-26
+ 1 file changed, 99 insertions(+), 99 deletions(-)
+To https://github.com/zoumingblue-spec/price-monitor.git
+   5a5b076..e8c8120  main -> main
+
+Saved: C:\Users\EDY\price-monitor\competitor_prices.csv
+Column: Price_2026-03-26  |  Rows: 98
+Git push OK

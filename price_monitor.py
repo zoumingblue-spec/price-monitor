@@ -25,6 +25,22 @@ DELAY_MS    = 2000       # 每次导航后等待（毫秒）
 # CI 环境自动切换为 headless，本地默认有界面
 HEADLESS    = os.environ.get("CI", "") != ""
 
+# 各市场域名映射
+MARKETPLACE_URLS = {
+    "US": "https://www.amazon.com/dp/{}",
+    "UK": "https://www.amazon.co.uk/dp/{}",
+    "DE": "https://www.amazon.de/dp/{}",
+    "FR": "https://www.amazon.fr/dp/{}",
+    "JP": "https://www.amazon.co.jp/dp/{}",
+    "CA": "https://www.amazon.ca/dp/{}",
+    "AU": "https://www.amazon.com.au/dp/{}",
+    "MX": "https://www.amazon.com.mx/dp/{}",
+}
+
+def asin_url(marketplace: str, asin: str) -> str:
+    tpl = MARKETPLACE_URLS.get(marketplace.upper(), MARKETPLACE_URLS["US"])
+    return tpl.format(asin)
+
 
 # ──────────────────────────────────────────────
 # 从 Amazon 产品页面提取价格
@@ -42,6 +58,37 @@ PRICE_SELECTORS = [
     "#price_inside_buybox",
     ".a-price.aok-align-center.reinventPricePriceToPayMargin .a-offscreen",
 ]
+
+async def get_sold_by(page) -> str:
+    """返回 Sold by 卖家名，无法获取时返回空字符串"""
+    SOLD_BY_SELECTORS = [
+        "#sellerProfileTriggerId",          # 主 Buy Box 卖家链接
+        "#tabular-buybox #sellerProfileTriggerId",
+        "#merchant-info a",
+        ".offer-display-feature-text-message",
+    ]
+    for sel in SOLD_BY_SELECTORS:
+        try:
+            el = await page.query_selector(sel)
+            if el:
+                txt = (await el.inner_text()).strip()
+                if txt:
+                    return txt
+        except Exception:
+            continue
+    # 兜底：用 JS 搜索页面文本
+    try:
+        seller = await page.evaluate("""() => {
+            const el = document.querySelector('#sellerProfileTriggerId')
+                    || document.querySelector('#merchant-info a');
+            return el ? el.innerText.trim() : '';
+        }""")
+        if seller:
+            return seller
+    except Exception:
+        pass
+    return ""
+
 
 async def is_bot_page(page) -> bool:
     """检测是否被跳转到验证码/机器人检测页面"""
@@ -114,10 +161,11 @@ def load_asins(path: Path) -> list[dict]:
             if not asin or asin.lower() == "asin":
                 continue
             rows.append({
-                "产品线": row.get("产品线", "").strip(),
+                "市场":     row.get("市场", "US").strip() or "US",
+                "产品线":   row.get("产品线", "").strip(),
                 "竞争品牌": row.get("竞争品牌", "").strip(),
                 "竞品型号": row.get("竞品型号", "").strip(),
-                "ASIN": asin,
+                "ASIN":     asin,
             })
     return rows
 
@@ -147,8 +195,9 @@ def save_output(path: Path, headers: list[str], rows: list[dict]):
 # 主抓取逻辑
 # ──────────────────────────────────────────────
 async def scrape(asin_rows: list[dict]) -> dict[str, str]:
-    """返回 {ASIN: price_str}"""
-    results: dict[str, str] = {}
+    """返回 ({ASIN: price_str}, {ASIN: sold_by_str})"""
+    results: dict[str, str]  = {}
+    sold_by: dict[str, str]  = {}
     sem = asyncio.Semaphore(CONCURRENCY)
     total = len(asin_rows)
 
@@ -175,26 +224,31 @@ async def scrape(asin_rows: list[dict]) -> dict[str, str]:
         """)
 
         async def fetch_one(idx: int, row: dict):
-            asin = row["ASIN"]
-            url  = f"https://www.amazon.com/dp/{asin}"
+            asin   = row["ASIN"]
+            market = row.get("市场", "US")
+            url    = asin_url(market, asin)
             async with sem:
                 page = await context.new_page()
                 try:
                     await page.goto(url, wait_until="domcontentloaded", timeout=25000)
                     await page.wait_for_timeout(800)
-                    price = await get_price(page)
+                    price  = await get_price(page)
+                    seller = await get_sold_by(page)
                 except PWTimeout:
-                    price = "TIMEOUT"
-                except Exception as e:
-                    price = "ERR"
+                    price  = "TIMEOUT"
+                    seller = ""
+                except Exception:
+                    price  = "ERR"
+                    seller = ""
                 finally:
                     await page.close()
 
                 results[asin] = price
+                sold_by[asin] = seller
                 status = "[OK]" if price not in ("NA", "TIMEOUT", "ERR") else "[NA]"
                 brand  = row['竞争品牌']
                 model  = row['竞品型号']
-                print(f"  [{idx+1:>3}/{total}] {status} {brand:12s} {model:20s} {asin}  ->  {price}")
+                print(f"  [{idx+1:>3}/{total}] {status} {brand:12s} {model:20s} {asin}  ->  {price:10s}  seller: {seller}")
                 sys.stdout.flush()
                 await asyncio.sleep(DELAY_MS / 1000)
 
@@ -202,20 +256,18 @@ async def scrape(asin_rows: list[dict]) -> dict[str, str]:
         await asyncio.gather(*tasks)
         await browser.close()
 
-    return results
+    return results, sold_by
 
 
 # ──────────────────────────────────────────────
 # 合并结果到输出 CSV
 # ──────────────────────────────────────────────
-def merge(asin_rows: list[dict], prices: dict[str, str]):
-    base_headers = ["产品线", "竞争品牌", "竞品型号", "ASIN", "US ASIN Link"]
+def merge(asin_rows: list[dict], prices: dict[str, str], sold_by: dict[str, str]):
+    base_headers = ["市场", "产品线", "竞争品牌", "竞品型号", "ASIN", "ASIN Link", "Sold_By"]
     old_headers, old_rows = load_output(OUTPUT_CSV)
 
-    # 建立 ASIN → 已有行 的映射
     existing: dict[str, dict] = {r["ASIN"]: r for r in old_rows}
 
-    # 确定最终列顺序：保留旧日期列 + 追加今天
     date_cols = [h for h in old_headers if h.startswith("Price_")]
     if DATE_COL not in date_cols:
         date_cols.append(DATE_COL)
@@ -223,14 +275,17 @@ def merge(asin_rows: list[dict], prices: dict[str, str]):
 
     new_rows = []
     for row in asin_rows:
-        asin = row["ASIN"]
+        asin   = row["ASIN"]
+        market = row.get("市场", "US")
         merged = existing.get(asin, {})
         merged.update({
+            "市场":     market,
             "产品线":   row["产品线"],
             "竞争品牌": row["竞争品牌"],
             "竞品型号": row["竞品型号"],
             "ASIN":     asin,
-            "US ASIN Link": f"https://www.amazon.com/dp/{asin}",
+            "ASIN Link": asin_url(market, asin),
+            "Sold_By":  sold_by.get(asin, merged.get("Sold_By", "")),
         })
         merged[DATE_COL] = prices.get(asin, "NA")
         new_rows.append(merged)
@@ -265,7 +320,7 @@ async def main():
     sys.stdout.flush()
 
     # ── 首次抓取 ──
-    prices = await scrape(asin_rows)
+    prices, sold_by = await scrape(asin_rows)
     print_stats(prices, "Round 1")
 
     # ── 重试循环（最多 6 次，间隔 10 分钟）──
@@ -277,14 +332,14 @@ async def main():
         sys.stdout.flush()
         await asyncio.sleep(RETRY_WAIT)
         print(f"\n--- Retry {retry}/{RETRY_MAX} ---")
-        retry_prices = await scrape(failed_rows)
-        # 合并结果：只更新之前失败的
+        retry_prices, retry_sold_by = await scrape(failed_rows)
         for asin, price in retry_prices.items():
             if price not in FAILED_VALUES:
-                prices[asin] = price
+                prices[asin]  = price
+                sold_by[asin] = retry_sold_by.get(asin, "")
         print_stats(prices, f"After retry {retry}")
 
-    merge(asin_rows, prices)
+    merge(asin_rows, prices, sold_by)
 
 
 if __name__ == "__main__":
