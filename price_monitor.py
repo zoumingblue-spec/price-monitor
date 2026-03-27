@@ -202,7 +202,16 @@ async def scrape(asin_rows: list[dict]) -> dict[str, str]:
     total = len(asin_rows)
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=HEADLESS)
+        browser = await pw.chromium.launch(
+            headless=HEADLESS,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-infobars",
+                "--window-size=1280,800",
+            ]
+        )
         context = await browser.new_context(
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -212,15 +221,41 @@ async def scrape(asin_rows: list[dict]) -> dict[str, str]:
             locale="en-US",
             viewport={"width": 1280, "height": 800},
             extra_http_headers={
-                "Accept-Language": "en-US,en;q=0.9",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language":  "en-US,en;q=0.9",
+                "Accept":           "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Encoding":  "gzip, deflate, br",
+                "Sec-Fetch-Dest":   "document",
+                "Sec-Fetch-Mode":   "navigate",
+                "Sec-Fetch-Site":   "none",
+                "Sec-Fetch-User":   "?1",
+                "Upgrade-Insecure-Requests": "1",
             },
         )
-        # 隐藏 webdriver 特征，避免被 Amazon 识别为爬虫
+        # 深度隐藏 webdriver / headless 特征
         await context.add_init_script("""
+            // 隐藏 webdriver
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-            Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3] });
-            window.chrome = { runtime: {} };
+            // 模拟真实插件
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => { const arr = [1,2,3,4,5]; arr.item = ()=>{}; return arr; }
+            });
+            Object.defineProperty(navigator, 'mimeTypes', {
+                get: () => { const arr = [1,2]; arr.item = ()=>{}; return arr; }
+            });
+            // 模拟语言
+            Object.defineProperty(navigator, 'languages', { get: () => ['en-US','en'] });
+            // Chrome 对象
+            window.chrome = { runtime: {}, loadTimes: ()=>{}, csi: ()=>{}, app: {} };
+            // 修正 permissions
+            const origQuery = window.navigator.permissions.query.bind(navigator.permissions);
+            window.navigator.permissions.query = (p) =>
+                p.name === 'notifications'
+                    ? Promise.resolve({ state: Notification.permission })
+                    : origQuery(p);
+            // 隐藏 headless 特征
+            Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+            Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+            Object.defineProperty(screen, 'colorDepth', { get: () => 24 });
         """)
 
         async def fetch_one(idx: int, row: dict):
@@ -230,8 +265,9 @@ async def scrape(asin_rows: list[dict]) -> dict[str, str]:
             async with sem:
                 page = await context.new_page()
                 try:
-                    await page.goto(url, wait_until="domcontentloaded", timeout=25000)
-                    await page.wait_for_timeout(800)
+                    await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    # CI 环境给更多时间让页面渲染
+                    await page.wait_for_timeout(3000 if HEADLESS else 800)
                     price  = await get_price(page)
                     seller = await get_sold_by(page)
                 except PWTimeout:
@@ -243,6 +279,8 @@ async def scrape(asin_rows: list[dict]) -> dict[str, str]:
                 finally:
                     await page.close()
 
+                # 清理卖家名中的特殊空白字符
+                seller = seller.replace('\xa0', ' ').replace('\u200b', '').strip()
                 results[asin] = price
                 sold_by[asin] = seller
                 status = "[OK]" if price not in ("NA", "TIMEOUT", "ERR") else "[NA]"
