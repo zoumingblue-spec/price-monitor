@@ -142,6 +142,27 @@
     margin-left: 4px;
   }
 
+  /* ── Export button ── */
+  .btn-export {
+    padding: 7px 16px;
+    border-radius: 8px;
+    border: 1px solid rgba(34,197,94,0.4);
+    background: rgba(34,197,94,0.08);
+    color: #4ade80;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .btn-export:hover {
+    background: rgba(34,197,94,0.15);
+    border-color: #22c55e;
+  }
+
   /* ── Table container ── */
   .table-wrap {
     padding: 0 28px 32px;
@@ -190,6 +211,29 @@
     width: 1%;
     white-space: nowrap;
   }
+
+  /* ── History toggle column ── */
+  .th-toggle {
+    cursor: pointer;
+    color: var(--text2) !important;
+    border-right: 2px dashed var(--border) !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    text-align: center !important;
+    padding: 10px 8px !important;
+    background: rgba(148,163,184,0.04);
+    transition: all 0.2s;
+  }
+  .th-toggle:hover { color: var(--accent) !important; background: rgba(79,142,247,0.06) !important; }
+  td.td-toggle {
+    border-right: 2px dashed var(--border);
+    background: rgba(148,163,184,0.02);
+  }
+
+  /* ── Historical date columns (dimmed) ── */
+  th.hist-col { color: var(--text2) !important; font-weight: 500 !important; }
+  td.hist-col .price-val { opacity: 0.65; }
+  td.hist-col.price-na { opacity: 0.5; }
 
   /* ── Market badge ── */
   .market-badge {
@@ -352,6 +396,9 @@
     <input id="search" type="text" placeholder="搜索品牌 / 型号 / ASIN...">
   </div>
   <div class="tabs" id="tabs"></div>
+  <button class="btn-export" id="btn-export" title="导出当前筛选结果为 CSV">
+    ⬇ 导出 CSV
+  </button>
   <div class="countdown" id="countdown"></div>
 </div>
 
@@ -394,6 +441,7 @@ let searchTerm = '';
 let sortCol = null;
 let sortDir = 1;
 let today = new Date().toISOString().slice(0, 10);
+let historyExpanded = false;
 
 // ── Fetch data (reads CSV directly, works on GitHub Pages) ──
 async function loadData() {
@@ -446,39 +494,76 @@ function buildTabs() {
 
 // ── Build table ──
 function buildTable() {
-  const showDates = dateCols.slice(-7); // 最多显示最近7天
-  const todayCol  = 'Price_' + today;
+  const recentCols  = dateCols.slice(-7);
+  const historyCols = dateCols.slice(0, -7);
+  const showDates   = historyExpanded ? dateCols : recentCols;
+  const todayCol    = 'Price_' + today;
 
   // Header
   const thead = document.getElementById('thead-row');
   thead.innerHTML = '';
-  const cols = ['市场', '产品线', '品牌 / 型号', 'ASIN', 'Sold By', ...showDates, '价格趋势'];
-  cols.forEach((col, i) => {
+
+  const fixedCols = ['市场', '产品线', '品牌 / 型号', 'ASIN', 'Sold By'];
+  fixedCols.forEach(col => {
     const th = document.createElement('th');
-    const isDate = col.startsWith('Price_');
+    th.className = 'col-fixed' + (col === 'Sold By' ? ' col-sold-by' : '');
+    th.textContent = col;
+    th.onclick = () => {
+      if (sortCol === col) sortDir *= -1;
+      else { sortCol = col; sortDir = 1; }
+      document.querySelectorAll('th').forEach(t => t.classList.remove('sort-asc','sort-desc'));
+      th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+      renderRows(showDates, todayCol, historyCols);
+    };
+    thead.appendChild(th);
+  });
+
+  // 历史展开/收起 toggle 列（仅当有超过7天数据时显示）
+  if (historyCols.length > 0) {
+    const th = document.createElement('th');
+    th.className = 'col-fixed th-toggle';
+    th.title = historyExpanded
+      ? '收起历史价格列'
+      : `展开更早的 ${historyCols.length} 天数据`;
+    th.innerHTML = historyExpanded
+      ? `◀ 收起`
+      : `▶ +${historyCols.length}天`;
+    th.onclick = () => {
+      historyExpanded = !historyExpanded;
+      buildTable();
+    };
+    thead.appendChild(th);
+  }
+
+  // 日期列
+  showDates.forEach((col, i) => {
+    const th = document.createElement('th');
     const isToday = col === todayCol;
-    const label = isDate ? col.replace('Price_', '') : col;
-    th.textContent = label;
-    const isTrend = col === '价格趋势';
+    const isHist  = historyCols.includes(col);
+    th.textContent = col.replace('Price_', '');
     const classes = [];
     if (isToday) classes.push('date-col-today');
-    if (!isDate && !isTrend) classes.push('col-fixed');
-    if (col === 'Sold By') classes.push('col-sold-by');
+    if (isHist)  classes.push('hist-col');
     if (classes.length) th.className = classes.join(' ');
     th.onclick = () => {
       if (sortCol === col) sortDir *= -1;
       else { sortCol = col; sortDir = 1; }
       document.querySelectorAll('th').forEach(t => t.classList.remove('sort-asc','sort-desc'));
       th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
-      renderRows(showDates, todayCol);
+      renderRows(showDates, todayCol, historyCols);
     };
     thead.appendChild(th);
   });
 
-  renderRows(showDates, todayCol);
+  // 趋势列
+  const thTrend = document.createElement('th');
+  thTrend.textContent = '价格趋势';
+  thead.appendChild(thTrend);
+
+  renderRows(showDates, todayCol, historyCols);
 }
 
-function renderRows(showDates, todayCol) {
+function renderRows(showDates, todayCol, historyCols = []) {
   let rows = allRows.filter(r => {
     if (activeCategory !== '全部' && r['产品线'] !== activeCategory) return false;
     if (searchTerm) {
@@ -523,12 +608,19 @@ function renderRows(showDates, todayCol) {
     const seller = row['Sold_By'] || '—';
     const isAmz  = seller.toLowerCase().includes('amazon');
     cells.push(`<td class="col-fixed col-sold-by"><span class="seller-tag ${isAmz ? 'seller-amazon' : 'seller-3p'}">${seller}</span></td>`);
+
+    // 历史展开占位列
+    if (historyCols.length > 0) {
+      cells.push(`<td class="col-fixed td-toggle"></td>`);
+    }
+
     // 价格列
     showDates.forEach((dateCol, idx) => {
-      const val  = row[dateCol] || '';
-      const prev = idx > 0 ? (row[showDates[idx-1]] || '') : '';
+      const val    = row[dateCol] || '';
+      const prev   = idx > 0 ? (row[showDates[idx - 1]] || '') : '';
       const isToday = dateCol === todayCol;
-      cells.push(buildPriceCell(val, prev, isToday));
+      const isHist  = historyCols.includes(dateCol);
+      cells.push(buildPriceCell(val, prev, isToday, isHist));
     });
 
     // 趋势 sparkline
@@ -553,7 +645,6 @@ function renderRows(showDates, todayCol) {
 // ── Sparkline SVG ──
 function buildSparkline(row) {
   const W = 120, H = 36, PAD = 4;
-  // 收集所有有效价格点 {x: index, y: price}
   const points = [];
   dateCols.forEach((col, i) => {
     const v = parseFloat(row[col]);
@@ -579,14 +670,12 @@ function buildSparkline(row) {
   const first = points[0].v, last = points[points.length-1].v;
   const color = last < first ? '#22c55e' : last > first ? '#ef4444' : '#64748b';
 
-  // 渐变填充
   const fillId = 'sf' + Math.random().toString(36).slice(2,7);
   const lastX = toX(points[points.length-1].i).toFixed(1);
   const lastY = toY(last).toFixed(1);
   const firstX = toX(points[0].i).toFixed(1);
   const bottomY = (H - PAD - 10).toFixed(1);
 
-  // 标注最新价格
   const priceLabel = `$${last.toFixed(2)}`;
 
   return `<td class="sparkline-cell">
@@ -608,9 +697,10 @@ function buildSparkline(row) {
   </td>`;
 }
 
-function buildPriceCell(val, prev, isToday) {
+function buildPriceCell(val, prev, isToday, isHist = false) {
+  const histClass = isHist ? ' hist-col' : '';
   if (!val || val === 'NA' || val === 'BOT' || val === 'ERR') {
-    return `<td class="price-cell price-na">—</td>`;
+    return `<td class="price-cell price-na${histClass}">—</td>`;
   }
   const num = parseFloat(val);
   const prevNum = parseFloat(prev);
@@ -622,7 +712,44 @@ function buildPriceCell(val, prev, isToday) {
     changeTxt = `<span class="price-change">${Math.abs(diff).toFixed(2)}</span>`;
   }
   if (isToday) cls += ' price-today';
-  return `<td class="price-cell ${cls}"><span class="price-val">$${num.toFixed(2)}</span>${changeTxt}</td>`;
+  return `<td class="price-cell ${cls}${histClass}"><span class="price-val">$${num.toFixed(2)}</span>${changeTxt}</td>`;
+}
+
+// ── Export CSV ──
+function exportCSV() {
+  const rows = allRows.filter(r => {
+    if (activeCategory !== '全部' && r['产品线'] !== activeCategory) return false;
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      return (r['竞争品牌'] + r['竞品型号'] + r['ASIN']).toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  if (rows.length === 0) return;
+
+  const keys = Object.keys(rows[0]);
+  const escape = v => {
+    const s = v == null ? '' : String(v);
+    return (s.includes(',') || s.includes('"') || s.includes('\n'))
+      ? '"' + s.replace(/"/g, '""') + '"'
+      : s;
+  };
+
+  const lines = [keys.map(escape).join(',')];
+  rows.forEach(row => lines.push(keys.map(k => escape(row[k])).join(',')));
+
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  const cat  = activeCategory === '全部' ? 'all' : activeCategory.replace(/\//g, '-');
+  const date = new Date().toISOString().slice(0, 10);
+  a.download = `price-monitor_${cat}_${date}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ── Search ──
@@ -631,12 +758,15 @@ document.getElementById('search').addEventListener('input', e => {
   buildTable();
 });
 
+// ── Export button ──
+document.getElementById('btn-export').addEventListener('click', exportCSV);
+
 // ── Countdown to noon auto-refresh ──
 function updateCountdown() {
   const now = new Date();
   const next = new Date(now);
   next.setHours(12, 0, 0, 0);
-  if (next <= now) next.setDate(next.getDate() + 1); // 已过12点则指向明天
+  if (next <= now) next.setDate(next.getDate() + 1);
   const diff = next - now;
   const h = Math.floor(diff / 3600000);
   const m = Math.floor((diff % 3600000) / 60000);
@@ -645,7 +775,6 @@ function updateCountdown() {
   document.getElementById('countdown').innerHTML =
     `${label}: <span>${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}</span>`;
 
-  // 到达12点时刷新页面
   const newToday = new Date().toISOString().slice(0, 10);
   if (newToday !== today) {
     today = newToday;
